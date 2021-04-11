@@ -92,8 +92,8 @@ class Agent:
         return
 
     def init_for_episode(self, player_index):
-        self.dutch_trace_theta_pi = 0.0
-        self.dutch_trace_theta_v = 0.0
+        self.dutch_trace_theta_pi = np.array([[0.0 for col in range(CNN.number_of_actions)] for row in range(CNN.number_of_feature_vector)])
+        self.dutch_trace_theta_v = np.array([[0.0] for row in range(CNN.number_of_feature_vector)])
         self.value_func_old = 0.0
         self.i_discount_factor = 1.0
         self.player_index = player_index
@@ -237,7 +237,6 @@ class Agent:
 
             value_func_next = 0.0
 
-
         # delta를 어떻게 가공할지 고민필요
         # 일단은 심플하게 원 핫 인코딩
         #label = tf.nn.relu(delta)
@@ -280,7 +279,6 @@ class Agent:
         if True in tf.math.is_nan(delta):
             print(self.discount_factor * value_func_next, value_func)
 
-
         #print(logits)
         #print(actor_loss)
         #print(self.get_logit.variables)
@@ -298,12 +296,12 @@ class Agent:
 
         #print(grads[-2][0][0], actor_grads[-2][0][0])
         if self.process_number == 0:
-            print(delta, value_func, actor_loss, loss)
+            print((self.player_index + 1).__str__() + f' player learns ', delta, value_func, actor_loss, loss)
 
         #print(tf.nn.softmax(logits))
 
         # 마지막 변수는 바이어스이기 때문에
-        updates_for_actor = actor_grads[-1] / self.probability_for_prior_act
+        updates_for_actor = actor_grads[-1] / self.probability_for_prior_act * -1
         #updates_for_actor = actor_grads[-2] / tf.nn.softmax(logits[0])[self.prior_act]
 
         # ----------------------------
@@ -317,9 +315,10 @@ class Agent:
         #print(self.dutch_trace_theta_v)
 
         # theta_v의 업데이트 부분에 해당. 가비지 의심 필요
-        grads[-1] = (delta + value_func - self.value_func_old) * self.dutch_trace_theta_v - (value_func - self.value_func_old) * phi * -1
+        grads[-1] = (delta + value_func - self.value_func_old) * self.dutch_trace_theta_v - (value_func - self.value_func_old) * phi# * -1
         actor_grads[-1] = delta * self.dutch_trace_theta_pi
 
+        #grads[-1] = grads[-1] * -1
         #grads[-1] = grads[-1] * self.alpha_theta_v * 0.0001
         #print(grads[-1][381])
 
@@ -354,7 +353,7 @@ class Agent:
 
         #actor_opt.apply_gradients(zip(actor_grads, self.get_logit.variables))
 
-        self.get_logit.variables[-1].assign(self.get_logit.variables[-1].numpy() - actor_grads[-1] * self.alpha_theta_pi)
+        self.get_logit.variables[-1].assign(self.get_logit.variables[-1].numpy() + actor_grads[-1] * self.alpha_theta_pi)
 
         #print(self.get_logit.variables[-2][0][0])
         #print(self.get_feature_vector_and_value_func.variables[-2][0])
@@ -422,13 +421,13 @@ class Agent:
             #theta_v_global[i] = theta_v_global[i] + value_grads[-1][i] / 2
             #theta_v_global[i] = theta_v[i]
 
+        #delta_theta_v = theta_v_global[:] - np.transpose(self.get_feature_vector_and_value_func.variables[-1].numpy())
+        # print(delta_theta_v)
+        #theta_v_global[:] = theta_v_global[:] - delta_theta_v[0] * 0.5  # * self.alpha_theta_v
+        theta_v_global[:] = theta_v_global[:] + np.transpose(value_grads)[0] * 0.5 * 0.1 #self.alpha_theta_v
 
-
-        theta_v_global[:] = theta_v_global[:] + np.transpose(value_grads)[0] * 0.5 * self.alpha_theta_v
-        #print(theta_v_global[381])
-
-        #print(theta_v_global[0])
         self.get_feature_vector_and_value_func.variables[-1].assign(np.transpose([theta_v_global[:]]))
+
         #self.direct_value_func.variables[-1].assign(np.transpose([theta_v_global[:]]))
 
         #print(theta_v_global[0])
@@ -436,6 +435,13 @@ class Agent:
         if self.thread_step_counter % self.t_max == 0 or QuoridorState.is_game_set():
             if self.process_number == 0:
                 print(f'RMSProp')
+
+            #delta_theta_v = theta_v_global[:] - np.transpose(self.get_feature_vector_and_value_func.variables[-1].numpy())
+            #print(delta_theta_v)
+            #theta_v_global[:] = theta_v_global[:] - delta_theta_v[0] * 0.5 # * self.alpha_theta_v
+
+            #self.get_feature_vector_and_value_func.variables[-1].assign(np.transpose([theta_v_global[:]]))
+
 
             theta_pi = self.get_logit.variables[-1].numpy()
             # print(theta_pi)
